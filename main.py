@@ -17,6 +17,10 @@ import os
 import sys
 from dotenv import load_dotenv
 
+from threading import Event, Thread
+
+from queue import Queue
+
 TIMEOUT_SEC = 6
 
 def main():
@@ -32,22 +36,46 @@ def main():
     vid = None
 
     table_rows = []
+
+    queue = Queue()
+    kill_event = Event()
+
+    def sign_in_process(driver: webdriver, table_rows: list[WebElement], queue: Queue) -> None:
+        while True:
+            if kill_event.is_set():
+                break
+            if not queue.empty():
+                table_rows = sign_in(driver, queue.get(), table_rows, queue)
+
+    def scan_qr_process(vid: VideoCapture, detect: QRCodeDetector, queue: Queue, display_stream: bool = False) -> None:
+        while True:
+            if kill_event.is_set():
+                break
+            data = scan_qr(vid, detect, display_stream)
+            if data:
+                queue.put(data)
     
     try:
         load_page(driver, username, password)
 
         vid = cv2.VideoCapture(0)
         detect = cv2.QRCodeDetector()
+        
+
+        cam_thread = Thread(target=scan_qr_process, args=(vid, detect, queue, True))
+        cam_thread.start()
+
+        sign_in_thread = Thread(target=sign_in_process, args=(driver,table_rows, queue))
+        sign_in_thread.start()
 
         while True:
-            data = scan_qr(vid, detect, True)
-            if data:
-                table_rows = sign_in(driver, data, table_rows)
-
-    
             key = cv2.waitKey(1)
             if key == ord("q"):
+                kill_event.set()
                 break
+
+        cam_thread.join()
+        sign_in_thread.join()
     except Exception as e:
         print(e)
     finally:
@@ -83,7 +111,6 @@ def load_page(driver: webdriver, username: str, password: str) -> None:
     except:
         raise Exception("Unable to load check-in page")    
 
-
 def scan_qr(vid: VideoCapture, detect: QRCodeDetector, display_stream: bool = False) -> str | None:
     if not vid or not detect:
         raise Exception("Invalid video capture or QR code detector")
@@ -98,10 +125,10 @@ def scan_qr(vid: VideoCapture, detect: QRCodeDetector, display_stream: bool = Fa
     if display_stream:
         cv2.imshow("QR Code", img)
 
-    return data if data else None
+    return data
 
-def sign_in(driver: webdriver, student_name: str, table_rows: list[WebElement] | None) -> list[WebElement]:
-    if not table_rows:
+def sign_in(driver: webdriver, student_name: str, table_rows: list[WebElement]) -> list[WebElement]:
+    if table_rows == []:
         try:
             table = driver.find_element(By.ID, "StudentCheckInTable")
             table_rows = table.find_elements(By.TAG_NAME, "tr")
@@ -121,7 +148,7 @@ def sign_in(driver: webdriver, student_name: str, table_rows: list[WebElement] |
             break
     
     if not target_student_row:
-        print(f"Student {student_name} not found")
+        print(f"[ERR]: Student {student_name} not found")
         return table_rows
     
     try:
@@ -132,15 +159,15 @@ def sign_in(driver: webdriver, student_name: str, table_rows: list[WebElement] |
         _ = WebDriverWait(driver, timeout=TIMEOUT_SEC).until(lambda d: d.find_element(By.ID, "kendoWindow").is_displayed())
         
         dialog = driver.find_element(By.ID, "kendoWindow")
+        # TODO: See if below is necessary
         WebDriverWait(driver, timeout=TIMEOUT_SEC).until(lambda d: d.find_element(By.ID, "confirmAttBtn"))
         confirm_button = dialog.find_element(By.ID, "confirmAttBtn")
         confirm_button.click()
+        # TODO: See if below is necessary
         ActionChains(driver).move_to_element(confirm_button).click().perform()
-        print(f"Signed in {student_name}", confirm_button.tag_name)
+        print(f"Signed in {student_name}")
 
     except Exception as e:
-        driver.save_screenshot("screenshot.png")
-        print(e)
         print(f"Unable to sign in {student_name}")
     finally:
         return table_rows
