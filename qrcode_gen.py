@@ -32,6 +32,7 @@ def main():
     
     for arg in sys.argv[1:]:
         data += arg + " "
+    data = data.strip()
 
     generate_qr_code(data)
 

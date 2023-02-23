@@ -2,6 +2,11 @@ import selenium.webdriver as webdriver
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.remote.webelement import WebElement
+from selenium.webdriver.common.action_chains import ActionChains
+from selenium.webdriver.support import expected_conditions as EC
+
+
+from selenium.webdriver.common.keys import Keys
 
 import time as timer
 
@@ -9,6 +14,7 @@ import cv2
 from cv2 import VideoCapture, QRCodeDetector
 
 import os
+import sys
 from dotenv import load_dotenv
 
 TIMEOUT_SEC = 6
@@ -29,16 +35,14 @@ def main():
     
     try:
         load_page(driver, username, password)
-        sign_in(driver, "Madelyn Corrigan", table_rows)
 
         vid = cv2.VideoCapture(0)
         detect = cv2.QRCodeDetector()
 
         while True:
-            # data = scan_qr(vid, detect, True)
-            # if data:
-            #     print(data)
-            #     sign_in(driver, data, table_rows)
+            data = scan_qr(vid, detect, True)
+            if data:
+                table_rows = sign_in(driver, data, table_rows)
 
     
             key = cv2.waitKey(1)
@@ -47,11 +51,10 @@ def main():
     except Exception as e:
         print(e)
     finally:
-        pass
-        #cv2.destroyAllWindows()
-        #if vid: vid.release()
+        vid.release()
+        cv2.destroyAllWindows()
         driver.quit()
-        #sys.exit()
+        sys.exit()
 
 def load_page(driver: webdriver, username: str, password: str) -> None:
     driver.get("https://radius.mathnasium.com/")
@@ -129,11 +132,15 @@ def sign_in(driver: webdriver, student_name: str, table_rows: list[WebElement] |
         _ = WebDriverWait(driver, timeout=TIMEOUT_SEC).until(lambda d: d.find_element(By.ID, "kendoWindow").is_displayed())
         
         dialog = driver.find_element(By.ID, "kendoWindow")
-        confirm_button = driver.find_element(By.ID, "confirmAttBtn")
-        #confirm_button.click()
+        WebDriverWait(driver, timeout=TIMEOUT_SEC).until(lambda d: d.find_element(By.ID, "confirmAttBtn"))
+        confirm_button = dialog.find_element(By.ID, "confirmAttBtn")
+        confirm_button.click()
+        ActionChains(driver).move_to_element(confirm_button).click().perform()
         print(f"Signed in {student_name}", confirm_button.tag_name)
 
     except Exception as e:
+        driver.save_screenshot("screenshot.png")
+        print(e)
         print(f"Unable to sign in {student_name}")
     finally:
         return table_rows
