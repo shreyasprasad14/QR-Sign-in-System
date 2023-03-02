@@ -12,12 +12,19 @@ from threading import Thread
 import os
 from dotenv import load_dotenv
 
+import pymongo
+from pymongo import MongoClient
+
+from datetime import datetime
+
 TIMEOUT_SEC = 6
 
 class MathnasiumSite:
     def __init__(self, driver: webdriver):
         self.driver = driver
         self.stopped = False
+
+        self.mongo_client = MongoClient(os.getenv("MONGO_URI"))
 
         username, password = MathnasiumSite.get_environment_variables()
         self.load_student_roster_page(username, password)
@@ -28,6 +35,7 @@ class MathnasiumSite:
     
     def stop(self) -> None:
         self.driver.quit()
+        self.mongo_client.close()
         self.stopped = True
     
     def sign_in_process(self, queue: Queue, message_queue: Queue) -> None:
@@ -36,6 +44,26 @@ class MathnasiumSite:
             if queue.empty(): continue
 
             s = queue.get()
+            db = self.mongo_client["mathnasium"]
+            collection = db["students"]
+            student = collection.find_one({"name": s})
+            if student and student["signed_in"]:
+                if student["date"] and (datetime.now() - student["date"]).total_seconds() < 1200:
+                    #message_queue.put(f"{s} already signed in")
+                    continue
+                else:
+                    collection.update_one(
+                        {"name": s},
+                        {"$set": {"signed_in": False, "date": datetime.now()}}, upsert=True
+                    )
+            elif not student:
+                collection.insert_one({"name": s, "signed_in": True, "date": datetime.now()})
+            else:
+                collection.update_one(
+                    {"name": s}, 
+                    {"$set": {"signed_in": True, "date": datetime.now()}}, upsert=True
+                )
+
             row = self.get_student_row(s)
 
             if not row:
@@ -110,9 +138,7 @@ class MathnasiumSite:
             # TODO: See if below is necessary
             WebDriverWait(self.driver, timeout=TIMEOUT_SEC).until(lambda d: d.find_element(By.ID, "confirmAttBtn"))
             confirm_button = dialog.find_element(By.ID, "confirmAttBtn")
-            #confirm_button.click()
-            # TODO: See if below is necessary
-            #ActionChains(driver).move_to_element(confirm_button).click().perform()
+            confirm_button.click()
             return True
         except Exception as e:
             return False

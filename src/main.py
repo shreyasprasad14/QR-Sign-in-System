@@ -24,7 +24,6 @@ def main():
 
     queue = Queue()
     message_queue = Queue()
-    signed_in: dict[str, datetime] = {}
 
     site_handler = None        
 
@@ -43,15 +42,7 @@ def main():
             if value_found:
                 frame = highlight_qr(frame, data, points)
                 for d in data:
-                    if d and d not in queue.queue and d:
-                        student_prev_signed_in = d in signed_in.keys()
-                        if not student_prev_signed_in or (datetime.now() - signed_in[d]).total_seconds() > 60:
-                            queue.put(d)
-                            if not student_prev_signed_in:
-                                signed_in[d] = datetime.now()
-                            else:
-                                signed_in.pop(d, None)
-                            print(f"Added {d} to queue")
+                    if d: queue.put(d)
 
             if (datetime.now() - last_detected).total_seconds() > TEXT_SCREEN_TIMEOUT_SEC:
                 message = None
