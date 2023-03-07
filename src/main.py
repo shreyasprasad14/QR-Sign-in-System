@@ -29,7 +29,9 @@ def main():
 
     try:
         if not camera_only:
-            driver = webdriver.Chrome()
+            options = webdriver.ChromeOptions()
+            options.add_argument("--headless")
+            driver = webdriver.Chrome(options=options)
             site_handler = MathnasiumSite(driver)
             site_handler.start(queue, message_queue)
 

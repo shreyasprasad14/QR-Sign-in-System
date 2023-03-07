@@ -19,6 +19,7 @@ from datetime import datetime
 
 TIMEOUT_SEC = 6
 
+PRINT_PREFIX = "[WD]: "
 class MathnasiumSite:
     def __init__(self, driver: webdriver):
         self.driver = driver
@@ -78,6 +79,7 @@ class MathnasiumSite:
                 message_queue.put(f"Unable to sign in {s}")
 
     def load_student_roster_page(self, username: str, password: str) -> None:
+        MathnasiumSite.output_message("Loading student roster page")
         self.driver.get("https://radius.mathnasium.com/")
 
         username_entry = self.driver.find_element(By.ID, "UserName")
@@ -87,6 +89,7 @@ class MathnasiumSite:
         password_entry.send_keys(password)
 
         login_button = self.driver.find_element(By.ID, "login")
+        self.driver.execute_script("document.getElementById('login').scrollIntoView();")
         login_button.click()
 
         #try:
@@ -96,6 +99,8 @@ class MathnasiumSite:
         
         if not connected_cookie or connected_cookie["value"] != "UserConnected":
             raise Exception("Unable to Login")
+        
+        MathnasiumSite.output_message("Successfully logged in as " + username)
 
         self.driver.get("https://radius.mathnasium.com/Attendance/StudentCheckIn")
         
@@ -103,6 +108,8 @@ class MathnasiumSite:
             WebDriverWait(self.driver, timeout=TIMEOUT_SEC).until(lambda d: d.find_element(By.CLASS_NAME, "activeRow"))
         except:
             raise Exception("Unable to load check-in page") 
+        
+        MathnasiumSite.output_message("Successfully loaded check-in page")
     
     def get_table_rows(self) -> None:
         try:
@@ -142,6 +149,10 @@ class MathnasiumSite:
             return True
         except Exception as e:
             return False
+
+    @staticmethod
+    def output_message(message: str) -> None:
+        print(f"{PRINT_PREFIX}{message}")
 
     @staticmethod
     def get_environment_variables() -> tuple[str, str]:
