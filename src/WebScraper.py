@@ -20,6 +20,7 @@ from datetime import datetime
 TIMEOUT_SEC = 6
 
 PRINT_PREFIX = "[WD]: "
+
 class MathnasiumSite:
     def __init__(self, driver: webdriver):
         self.driver = driver
@@ -48,22 +49,17 @@ class MathnasiumSite:
             db = self.mongo_client["mathnasium"]
             collection = db["students"]
             student = collection.find_one({"name": s})
-            if student and student["signed_in"]:
-                if student["date"] and (datetime.now() - student["date"]).total_seconds() < 1200:
+            if student:
+                if student["date"] and (datetime.now() - student["date"]).total_seconds() < 2 * 60:
                     #message_queue.put(f"{s} already signed in")
                     continue
                 else:
                     collection.update_one(
                         {"name": s},
-                        {"$set": {"signed_in": False, "date": datetime.now()}}, upsert=True
+                        {"$set": {"date": datetime.now()}}, upsert=True
                     )
-            elif not student:
-                collection.insert_one({"name": s, "signed_in": True, "date": datetime.now()})
             else:
-                collection.update_one(
-                    {"name": s}, 
-                    {"$set": {"signed_in": True, "date": datetime.now()}}, upsert=True
-                )
+                collection.insert_one({"name": s, "date": datetime.now()})
 
             row = self.get_student_row(s)
 
@@ -76,10 +72,15 @@ class MathnasiumSite:
             if self.sign_in_student(row):
                 message_queue.put(f"Signed in {s}")
             else:
+                collection.update_one(
+                    {"name": s},
+                    {"$set": {"date": datetime.now()}}, upsert=True
+                )
+                self.driver.refresh()
                 message_queue.put(f"Unable to sign in {s}")
 
     def load_student_roster_page(self, username: str, password: str) -> None:
-        MathnasiumSite.output_message("Loading student roster page")
+        MathnasiumSite.output("Loading Page...")
         self.driver.get("https://radius.mathnasium.com/")
 
         username_entry = self.driver.find_element(By.ID, "UserName")
@@ -99,17 +100,21 @@ class MathnasiumSite:
         
         if not connected_cookie or connected_cookie["value"] != "UserConnected":
             raise Exception("Unable to Login")
-        
-        MathnasiumSite.output_message("Successfully logged in as " + username)
+
+        MathnasiumSite.output("Logged in as: " + username)
 
         self.driver.get("https://radius.mathnasium.com/Attendance/StudentCheckIn")
+        self.driver.get('chrome://settings/')
+        zoom = 0.25 #for example 0.5, or 1.5 or 2.0 and so on
+        self.driver.execute_script(f'chrome.settingsPrivate.setDefaultZoom({zoom});')
+        self.driver.back()
         
         try:
             WebDriverWait(self.driver, timeout=TIMEOUT_SEC).until(lambda d: d.find_element(By.CLASS_NAME, "activeRow"))
         except:
             raise Exception("Unable to load check-in page") 
-        
-        MathnasiumSite.output_message("Successfully loaded check-in page")
+
+        MathnasiumSite.output("Check-In Page Loaded")
     
     def get_table_rows(self) -> None:
         try:
@@ -151,8 +156,8 @@ class MathnasiumSite:
             return False
 
     @staticmethod
-    def output_message(message: str) -> None:
-        print(f"{PRINT_PREFIX}{message}")
+    def output(msg: str):
+        print(PRINT_PREFIX + msg)
 
     @staticmethod
     def get_environment_variables() -> tuple[str, str]:
