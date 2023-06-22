@@ -9,7 +9,7 @@ from datetime import datetime
 from VideoHelper import VideoGet, VideoShow, highlight_qr, add_text
 from WebScraper import MathnasiumSite
 
-TEXT_SCREEN_TIMEOUT_SEC = 1.5
+TEXT_SCREEN_TIMEOUT_SEC = 2
 
 DEFAULT_MESSAGE = "Scan QR Code"
 
@@ -52,7 +52,7 @@ def main():
                     message = message_queue.get()
                     last_detected = datetime.now()
 
-            frame = add_text(frame, message if message else DEFAULT_MESSAGE)
+            frame = add_text(frame, message if message else DEFAULT_MESSAGE, (127, 255, 0) if message else None)
 
             video_shower.frame = frame
 

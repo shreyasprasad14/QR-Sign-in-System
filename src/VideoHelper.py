@@ -67,9 +67,9 @@ def highlight_qr(frame: ndarray, decoded_info: Iterable[str], points: ndarray) -
 
     return frame
 
-def add_text(frame: ndarray, text: str) -> ndarray:
+def add_text(frame: ndarray, text: str, color: tuple[int, int, int] | None) -> ndarray:        
     text_size = cv2.getTextSize(text, FONT, 1, 2)[0]
     text_x = (frame.shape[1] - text_size[0]) // 2
     text_y = text_size[1] + TEXT_PADDING_PX
     text_pos = (text_x, text_y)
-    return cv2.putText(frame, text, text_pos, FONT, 1, DEFAULT_TEXT_COLOR, 2, cv2.LINE_AA)
+    return cv2.putText(frame, text, text_pos, FONT, 1, color if color else DEFAULT_TEXT_COLOR, 2, cv2.LINE_AA)

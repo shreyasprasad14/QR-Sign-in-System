@@ -116,7 +116,17 @@ class MathnasiumSite:
 
         MathnasiumSite.output("Check-In Page Loaded")
     
-    def get_table_rows(self) -> None:
+    def get_signed_in_students(self) -> list[str]:
+        signed_in_students = []
+        for row in self.student_rows:
+            try:
+                last_activity_cell = self.driver.find_element(By.CLASS_NAME, "LastActivityCell")
+                if "checked in" in last_activity_cell.text:
+                    signed_in_students.append(row.find_element(By.CLASS_NAME, "StudentNameCell").text)
+            except: continue
+        return signed_in_students
+                
+    def get_table_rows(self) -> list[WebElement]:
         try:
             table = self.driver.find_element(By.ID, "StudentCheckInTable")
             return table.find_elements(By.TAG_NAME, "tr")
